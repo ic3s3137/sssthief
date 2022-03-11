@@ -19,8 +19,12 @@ var SSHAskEnd = regexp.MustCompile(`(: $)|(：$)`)
 var SSHSuccess = regexp.MustCompile(`(Welcome to)|(Last login)|(Last failed login)`)
 var SSHIfFirst = regexp.MustCompile(`^(The authenticity)`)
 
-func cheatSSH() string {
-	var pty, _ = term.OpenPTY()
+func cheatSSH() {
+	var pty, err = term.OpenPTY()
+	if err != nil {
+		execScript(cmd)
+		return
+	}
 	var user, password, ip, port string
 	var writeMsg = make(chan struct{})
 	var readLock = make(chan struct{})
@@ -127,7 +131,6 @@ func cheatSSH() string {
 	if !AskPass && password == "" {
 		execScript(cmd)
 	}
-	return password
 }
 func getSSHInfo() (string, string, string) {
 	var user, ip, port string

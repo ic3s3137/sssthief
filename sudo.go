@@ -15,7 +15,11 @@ var SudoAskPrefix = regexp.MustCompile(`^\[sudo\]`)
 var SudoAskEnd = regexp.MustCompile(`(: $)|(：$)`)
 
 func cheatSudo() {
-	var pty, _ = term.OpenPTY()
+	var pty, err = term.OpenPTY()
+	if err != nil {
+		execScript(cmd)
+		return
+	}
 	var writeMsg = make(chan struct{})
 	var password string
 	var inputArgs []string

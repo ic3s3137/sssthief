@@ -38,10 +38,6 @@ func main() {
 	//}
 	if program == "ssh" {
 		cheatSSH()
-
-		//if ok && password != ""{
-		//	startSSHShell(password)
-		//}
 	}
 }
 func checkErr(err error) {
