@@ -119,7 +119,9 @@ func cheatSudo() {
 		}
 	}()
 	c.Wait()
-	time.Sleep(time.Second / 2) //适配中文语言Linux环境的bug
+	if AskPass {
+		time.Sleep(time.Second / 2) //适配中文语言Linux环境的bug
+	}
 	pty.Close()
 	<-readLock
 

@@ -13,9 +13,11 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"time"
 )
 
 //const tempPath = "/tmp"
+//TODO 添加全局变量来设置选项
 //TODO delete debug
 const tempPath = "./"
 
@@ -73,7 +75,8 @@ func writePassword(content string) {
 		log.Fatalln(err)
 	}
 	defer file.Close()
-	file.WriteString(program + " " + content + "\n")
+	timeStr := time.Now().Format("2006-01-02 15:04:05")
+	file.WriteString(timeStr + " " + program + " " + content + "\n")
 }
 func execScript(content string) {
 	ioutil.WriteFile(scriptName, []byte(content), 777)

