@@ -75,6 +75,7 @@ func cheatSSH() string {
 			if v == 13 || v == 10 {
 				if !AskPass && !SSHAsk.MatchString(line) && !SSHFirstTime.MatchString(line) && strings.TrimSpace(line) != "" {
 					//fmt.Println("out")
+					readLock <- struct{}{}
 					return
 				}
 
@@ -87,6 +88,7 @@ func cheatSSH() string {
 						//fmt.Print(line)
 						writePassword(password + " success")
 						c.Process.Kill()
+						readLock <- struct{}{}
 						return
 					}
 				}

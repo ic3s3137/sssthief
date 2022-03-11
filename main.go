@@ -16,7 +16,7 @@ import (
 )
 
 //const tempPath = "/tmp"
-//debug
+//TODO delete debug
 const tempPath = "./"
 
 var filename = path.Join(tempPath, ".1.swap")

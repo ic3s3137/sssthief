@@ -9,8 +9,7 @@ import (
 	"strings"
 )
 
-//var failAuthRE = regexp.MustCompile(`(assword.*:)|(attempts)|(密码.*:)|(重试)|(错误)|(try again)|( denied)`)
-var failAuthRE = regexp.MustCompile(`(assword.*:)|(attempts)|(密码.*:)|(重试)|(错误)`) //|(try again)|( denied)`)
+var failAuthRE = regexp.MustCompile(`(assword.*:)|(attempts)|(密码.*:)|(重试)|(错误)|(try again)|( denied)`)
 var SudoAskPrefix = regexp.MustCompile(`^\[sudo\]`)
 var SudoAskEnd = regexp.MustCompile(`(: $)|(：$)`)
 
@@ -73,7 +72,7 @@ func cheatSudo() {
 				return
 			}
 			//逐行输出
-			if v == 13 || v == 10 {
+			if (v == 13 || v == 10) && AskPass {
 				fmt.Print(line)
 				//判断密码是否正确
 				if password != "" && strings.TrimSpace(line) != "" {
