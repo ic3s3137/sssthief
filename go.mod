@@ -1,11 +1,11 @@
-module sudo-steal-token
+module sssthief
 
 go 1.17
 
 require (
-	github.com/google/goterm v0.0.0-20190703233501-fc88cf888a3f
+	github.com/google/goterm v0.0.0-20200907032337-555d40f16ae2
 	github.com/satori/go.uuid v1.2.0
-	golang.org/x/crypto v0.0.0-20220307211146-efcb8507fb70
+	golang.org/x/crypto v0.0.0-20220313003712-b769efc7c000
 )
 
 require (

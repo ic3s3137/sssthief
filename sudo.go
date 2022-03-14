@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-var failAuthRE = regexp.MustCompile(`(assword.*:)|(attempts)|(密码.*:)|(重试)|(错误)|(try again)|( denied)`)
+var failAuthRE = regexp.MustCompile(`(assword.*:)|(attempts)|(密码.*：)|(重试)|(错误)|(try again)|( denied)`)
 var SudoAskPrefix = regexp.MustCompile(`^\[sudo\]`)
 var SudoAskEnd = regexp.MustCompile(`(: $)|(：$)`)
 

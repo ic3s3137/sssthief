@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/google/goterm/term"
 	"golang.org/x/crypto/ssh/terminal"
 	"io/ioutil"
@@ -55,6 +56,34 @@ func (p *ptyReader) Readline() string {
 			if !notMatch {
 				return string(lineByte)
 			}
+		}
+	}
+}
+func (p *ptyReader) SteamPrint(stopRule ...*regexp.Regexp) string {
+	var lineByte []byte
+	for {
+		v, err := p.pty.ReadByte()
+		if err != nil {
+			//p.Done()
+			//p.Close()
+			p.isClose = true
+		}
+		lineByte = append(lineByte, v)
+		if v == 10 || v == 13 {
+			fmt.Print(string(lineByte))
+			lineByte = nil
+		}
+		var notMatch bool
+		for _, r := range stopRule {
+			if !r.MatchString(string(lineByte)) {
+				notMatch = true
+				break
+			}
+		}
+		if !notMatch {
+			//fmt.Print(string(lineByte))
+			//lineByte = nil
+			return string(lineByte)
 		}
 	}
 }
