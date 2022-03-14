@@ -19,9 +19,6 @@ type ptyReader struct {
 	isClose  bool
 }
 
-//func (p *ptyReader)Reader(pty *term.PTY){
-//	return p
-//}
 func (p *ptyReader) Reader(pty *term.PTY) {
 	p.pty = pty
 	p.ReadLock = make(chan struct{})
@@ -30,14 +27,11 @@ func (p *ptyReader) AddRule(rule ...*regexp.Regexp) {
 	p.rules = append(p.rules, rule)
 }
 
-//func (p *ptyreadineByte
 func (p *ptyReader) Readline() string {
 	var lineByte []byte
 	for {
 		v, err := p.pty.ReadByte()
 		if err != nil {
-			//p.Done()
-			//p.Close()
 			p.isClose = true
 			return ""
 		}

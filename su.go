@@ -14,7 +14,6 @@ import (
 var SuFail = regexp.MustCompile(`failure`)
 var SuAsk = regexp.MustCompile(`assword: $`)
 
-//TODO 修复su切换用户后无法使用tab自动补全，无法处理交互式命令
 func cheatSu() {
 	var pty, err = term.OpenPTY()
 	ExecIfErr(err)
